@@ -5,6 +5,10 @@ from PyPDF2 import PdfReader
 from faster_whisper import WhisperModel
 from pydub import AudioSegment
 
+import os
+from langchain_groq import ChatGroq
+from langchain_core.prompts import ChatPromptTemplate
+
 # from moviepy.editor import VideoFileClip
 
 class SpeechToText:
@@ -107,3 +111,52 @@ def convert_mp4_to_mp3(mp4_path, mp3_path):
         audio.export(mp3_path, format="mp3")
     except Exception:
         print(f"Error converting {mp4_path} to MP3.")
+
+
+
+# Ensure GROQ API key is set via environment variable
+# export GROQ_API_KEY="your_key_here"
+
+def analyze_candidate(resume: str, jd: str, interview_responses: str) -> str:
+    # Load Groq API key from environment
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
+        raise ValueError("GROQ_API_KEY not found in environment variables.")
+
+    # Initialize the Groq LLM
+    llm = ChatGroq(groq_api_key=groq_api_key, model_name="Llama3-8b-8192")
+
+    # Define the evaluation prompt
+    prompt_template = ChatPromptTemplate.from_template(
+        """
+        You are an expert HR Analyst in an Applicant Tracking System (ATS).
+        Given the following information:
+
+        1. Resume:
+        {resume}
+
+        2. Job Description:
+        {jd}
+
+        3. Interview Responses (Conversation format):
+        {interview_responses}
+
+        Generate a detailed candidate evaluation report with the following structure:
+
+        - Strong Points
+        - Weak Points
+        - Suggestions for Improvement
+        - Final Decision Summary about the Candidate (Suitable/Not Suitable + Short Justification)
+        """
+    )
+
+    # Format the prompt
+    prompt = prompt_template.format(
+        resume=resume,
+        jd=jd,
+        interview_responses=interview_responses
+    )
+
+    # Get response from the LLM
+    response = llm.invoke(prompt)
+    return response.content

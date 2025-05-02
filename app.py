@@ -1,6 +1,7 @@
 import streamlit as st
 import os
-from utils.helpers import is_valid_inputs, pdf_to_markdown, save_individual_json, convert_mp4_to_mp3, SpeechToText
+from utils.helpers import is_valid_inputs, pdf_to_markdown, save_individual_json, convert_mp4_to_mp3, SpeechToText, analyze_candidate
+import json
 
 st.set_page_config(page_title="Job Match App", layout="centered")
 
@@ -53,6 +54,27 @@ if valid_inputs:
             convert_mp4_to_mp3(video_path, audio_path)
 
             text = stt.transcribe("uploads/intro_audio.mp3", "markdowns/transcription.json")
+
+            # Read JSON file into a variable
+            with open('markdowns/transcription.json', 'r') as file:
+                video_text = json.load(file)
+
+            print("#########################3video text : ", video_text)
+
+
+            report = analyze_candidate(resume_md, jd_md, video_text)
+
+            # Define the file path where the report will be saved
+            report_dict = {
+                "evaluation_report": report
+            }
+
+            # Save to JSON file at the specified location
+            with open("markdowns/report.json", 'w') as json_file:
+                json.dump(report_dict, json_file, indent=4)
+                    # Save the report as a JSON file
+
+
             st.success("✅ All files processed and saved successfully.")
             st.markdown(f"📄 Resume saved to: `{resume_path}`")
             st.markdown(f"📄 JD saved to: `{jd_path}`")
