@@ -1,0 +1,19 @@
+# Ignore a specific Python script
+test.py
+
+# Ignore document files
+*.docx
+
+# Ignore media files
+*.mp3
+*.mp4
+
+# Ignore Jupyter notebooks
+*.ipynb
+
+# Ignore JSON data files
+*.json
+
+# Ignore text files
+*.txt
+*.pdf
