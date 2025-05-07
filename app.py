@@ -1,19 +1,50 @@
-import streamlit as st
-import os
-from utils.helpers import is_valid_inputs, pdf_to_markdown, save_individual_json, convert_mp4_to_mp3, SpeechToText, analyze_candidate
-import json
+# -------------------- System Info (Optional Debugging) --------------------
+import sys
+print(sys.executable)  # Shows current Python interpreter (useful for debugging)
 
+# -------------------- Standard Library --------------------
+import os
+import warnings
+
+# -------------------- Environment Setup --------------------
+os.environ["STREAMLIT_WATCH_USE_POLLING"] = "true"
+warnings.filterwarnings("ignore", category=UserWarning)
+
+# -------------------- Third-party Libraries --------------------
+import streamlit as st
+from pyannote.audio import Pipeline
+from pydub import AudioSegment
+from faster_whisper import WhisperModel
+
+# -------------------- App-specific Modules --------------------
+# from configurations.config import report_file,resume_filename,jd_filename,required_speakers_text, file_inputs, LABEL, KEY, TYPES, submit_button_label, output_dir, interview_wavfile, transcribed_filename, stt_modelname, stt_device,hf_token
+from configurations.config import FilePaths, ModelConfig, UIConfig,SchemaKeys
+
+from utils.helpers import (
+    is_valid_inputs,
+    SpeechToText,
+    analyze_candidate,
+    process_uploaded_files,
+    read_file,
+    filter_multiple_speakers_text,
+    save_temp_file
+)
+
+# -------------------- Streamlit Page Setup --------------------
 st.set_page_config(page_title="Job Match App", layout="centered")
 
-
+# -------------------- Resource Caching --------------------
 @st.cache_resource
 def load_stt_model():
-    return SpeechToText(model_size="base", device="cpu")
-
+    return SpeechToText(
+        ModelConfig.hf_token,
+        model_size=ModelConfig.stt_modelname,
+        device=ModelConfig.stt_device
+    )
 
 stt = load_stt_model()
 
-
+# -------------------- Custom Styles --------------------
 try:
     with open("assets/styles.css") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
@@ -22,64 +53,51 @@ except FileNotFoundError:
 except Exception as e:
     st.error(f"🚨 Unexpected error loading stylesheet: {str(e)}")
 
+# -------------------- UI Layout --------------------
 st.title("Job Match Application")
 st.subheader("Please upload the following files for processing:")
 
-resume = st.file_uploader("### 1. Upload Resume (PDF)", type=["pdf"])
-jd = st.file_uploader("### 2. Upload Job Description (PDF)", type=["pdf", "docx"])
-video = st.file_uploader("### 3. Upload Introduction Video (MP4)", type=["mp4"])
+uploaded_files = {}
+for item in UIConfig.file_inputs:
+    uploaded_files[item[SchemaKeys.KEY]] = st.file_uploader(item[SchemaKeys.LABEL], type=item[SchemaKeys.TYPES])
 
-valid_inputs = is_valid_inputs(resume, jd, video)
+valid_inputs = is_valid_inputs(uploaded_files)
+
 
 if valid_inputs:
-    if st.button("Submit"):
+    if st.button(UIConfig.submit_button_label):
         try:
             st.info("Processing inputs...")
 
-            resume_md = pdf_to_markdown(resume)
-            jd_md = pdf_to_markdown(jd)
-
-            resume_path = save_individual_json(resume_md, "resume")
-            jd_path = save_individual_json(jd_md, "job_description")
-
-            # Save uploaded video
-            video_folder = "uploads"
-            os.makedirs(video_folder, exist_ok=True)
-            video_path = os.path.join(video_folder, "intro_video.mp4")
-            with open(video_path, "wb") as f:
-                f.write(video.read())
-
-            # Convert video to MP3
-            audio_path = os.path.join(video_folder, "intro_audio.mp3")
-            convert_mp4_to_mp3(video_path, audio_path)
-
-            text = stt.transcribe("uploads/intro_audio.mp3", "markdowns/transcription.json")
-
-            # Read JSON file into a variable
-            with open('markdowns/transcription.json', 'r') as file:
-                video_text = json.load(file)
-
-            print("#########################3video text : ", video_text)
+            processed_paths = process_uploaded_files(uploaded_files, UIConfig.file_inputs)
 
 
-            report = analyze_candidate(resume_md, jd_md, video_text)
+            #text = stt.transcribe_with_diarization(interview_wavfile, transcribed_filename, output_dir)
+
+
+            transcribed_text = os.path.join(FilePaths.output_dir,FilePaths.transcribed_filename)
+            interview_text = read_file(transcribed_text)
+            filtered_interview_text = filter_multiple_speakers_text(interview_text, UIConfig.required_speakers_text)
+
+            resume_path = os.path.join(FilePaths.output_dir,FilePaths.resume_filename)
+            jd_path = os.path.join(FilePaths.output_dir,FilePaths.jd_filename)
+
+            resume_md = read_file(resume_path)
+            jd_md = read_file(jd_path)
+            report = analyze_candidate(resume_md, jd_md, filtered_interview_text)
 
             # Define the file path where the report will be saved
             report_dict = {
                 "evaluation_report": report
             }
-
-            # Save to JSON file at the specified location
-            with open("markdowns/report.json", 'w') as json_file:
-                json.dump(report_dict, json_file, indent=4)
-                    # Save the report as a JSON file
-
+            
+            save_temp_file(report_dict, FilePaths.report_file, FilePaths.output_dir,as_json = True)
 
             st.success("✅ All files processed and saved successfully.")
-            st.markdown(f"📄 Resume saved to: `{resume_path}`")
-            st.markdown(f"📄 JD saved to: `{jd_path}`")
-            st.markdown(f"🎥 Video saved to: `{video_path}`")
-            st.markdown(f"🔊 Audio extracted to: `{audio_path}`")
+            st.markdown(f"📄 Resume saved to: ")
+            st.markdown(f"📄 JD saved to")
+            st.markdown(f"🎥 Video saved to: ")
+            st.markdown(f"🔊 Audio extracted to: ")
 
         except RuntimeError as e:
             st.error(f"⚠️ {str(e)}")
