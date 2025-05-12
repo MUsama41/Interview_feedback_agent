@@ -2,6 +2,7 @@ import os
 import json
 from pdf2markdown4llm import PDF2Markdown4LLM
 from PyPDF2 import PdfReader
+import re
 
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
@@ -182,24 +183,26 @@ class SpeechToText:
             print(f"[ERROR] Error during transcription with diarization: {e}")
             return ""
 
-
-def filter_multiple_speakers_text(data: list, speaker_ids: list) -> dict:
+def filter_multiple_speakers_text(data: list, speaker_ids: list) -> list:
     """
-    Filters and groups text segments by multiple speaker IDs.
+    Filters and extracts individual sentences spoken by specified speaker IDs.
 
     Args:
         data (list): List of dicts with 'speaker' and 'text' keys.
-        speaker_ids (list): List of speaker IDs to filter (e.g., ["SPEAKER_00", "SPEAKER_01"]).
+        speaker_ids (list): List of speaker IDs to filter.
 
     Returns:
-        dict: Dictionary with speaker IDs as keys and concatenated text as values.
+        list: Flat list of individual sentences (strings).
     """
-    result = {speaker: [] for speaker in speaker_ids}
+    sentences = []
     for item in data:
         speaker = item.get("speaker")
         if speaker in speaker_ids:
-            result[speaker].append(item.get("text", ""))
-    return {speaker: " ".join(texts) for speaker, texts in result.items()}
+            text = item.get("text", "")
+            # Split text into sentences using punctuation
+            parts = re.split(r'(?<=[.!?])\s+', text.strip())
+            sentences.extend([s for s in parts if s])
+    return sentences
 
 
 def is_valid_inputs(uploaded_files: dict):

@@ -5,6 +5,7 @@ print(sys.executable)  # Shows current Python interpreter (useful for debugging)
 # -------------------- Standard Library --------------------
 import os
 import warnings
+import json
 
 # -------------------- Environment Setup --------------------
 os.environ["STREAMLIT_WATCH_USE_POLLING"] = "true"
@@ -17,8 +18,8 @@ from pydub import AudioSegment
 from faster_whisper import WhisperModel
 
 # -------------------- App-specific Modules --------------------
-# from configurations.config import report_file,resume_filename,jd_filename,required_speakers_text, file_inputs, LABEL, KEY, TYPES, submit_button_label, output_dir, interview_wavfile, transcribed_filename, stt_modelname, stt_device,hf_token
 from configurations.config import FilePaths, ModelConfig, UIConfig,SchemaKeys
+from utils.routers import summarize_resume_jd_interview,process_interview_json
 
 from utils.helpers import (
     is_valid_inputs,
@@ -72,24 +73,31 @@ if valid_inputs:
             processed_paths = process_uploaded_files(uploaded_files, UIConfig.file_inputs)
 
 
-            #text = stt.transcribe_with_diarization(interview_wavfile, transcribed_filename, output_dir)
+            # text = stt.transcribe_with_diarization(FilePaths.interview_wavfile, FilePaths.transcribed_filename, FilePaths.output_dir)
 
 
             transcribed_text = os.path.join(FilePaths.output_dir,FilePaths.transcribed_filename)
             interview_text = read_file(transcribed_text)
             filtered_interview_text = filter_multiple_speakers_text(interview_text, UIConfig.required_speakers_text)
 
+
             resume_path = os.path.join(FilePaths.output_dir,FilePaths.resume_filename)
             jd_path = os.path.join(FilePaths.output_dir,FilePaths.jd_filename)
 
-            resume_md = read_file(resume_path)
-            jd_md = read_file(jd_path)
-            report = analyze_candidate(resume_md, jd_md, filtered_interview_text)
+            grouped_text = process_interview_json(filtered_interview_text)
+            resume_jd_dict = summarize_resume_jd_interview(resume_path, jd_path,grouped_text)
+   
+            report = analyze_candidate(resume_jd_dict["parsed_resume"], resume_jd_dict["parsed_jd"], resume_jd_dict["interview_summary"])
 
             # Define the file path where the report will be saved
             report_dict = {
                 "evaluation_report": report
             }
+            st.session_state.report_dict = report_dict  # Save to session state
+            if "report_dict" in st.session_state:
+                st.markdown("### 📝 Evaluation Report")
+                st.json(st.session_state.report_dict)  # Display the saved report dict as JSON
+
             
             save_temp_file(report_dict, FilePaths.report_file, FilePaths.output_dir,as_json = True)
 

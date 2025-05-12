@@ -8,6 +8,7 @@ class SchemaKeys:
     LABEL = "label"
     KEY = "key"
     TYPES = "types"
+    grouping_threshold = 0.2
 
 
 class UIConfig:
@@ -30,14 +31,18 @@ class FilePaths:
     resume_filename = "resume.json"
     jd_filename = "jd.json"
     report_file = "report"
+    interview_wavfile = "output.wav"
+    
 
 
 class ModelConfig:
     diarization_model = "pyannote/speaker-diarization-3.1"
-    llm_name = "Llama3-8b-8192"
+    llm_name = "llama-3.3-70b-versatile"
 
     stt_modelname = os.getenv("STT_MODELNAME", "tiny")
     stt_device = os.getenv("STT_DEVICE", "cpu")
+
+    encoder_model = "all-MiniLM-L6-v2"
 
 
     hf_token = os.environ["HF_TOKEN"]
